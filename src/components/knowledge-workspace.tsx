@@ -83,7 +83,8 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
     const {error:saveError}=await client.from("captures").update({raw_transcript:transcript,processing_status:"complete"})
       .eq("id",note.id).eq("owner_id",owner).is("raw_transcript",null);
     if(saveError)throw Error("Recognized speech, but failed to save: "+saveError.message);
-    setNotice("Transcribed locally without any paid API. Transcript saved.");
+    setNotice("Transcript saved. Review the suggested project before filing.");
+    setReviewId(note.id);
     await load();
   }catch(e){setError(e instanceof Error?e.message:"Local transcription failed.");}
   finally{engine?.dispose();setTranscribing(null);setTranscribeProgress("");}
