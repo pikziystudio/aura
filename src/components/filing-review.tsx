@@ -4,14 +4,39 @@ import {getSupabase} from "@/lib/supabase";
 type Project={id:string;name:string};
 type Alias={project_id:string;alias:string};
 type Capture={id:string;title:string|null;raw_transcript:string|null;corrected_transcript:string|null;project_id:string|null;filing_status?:string};
-const norm=(s:string)=>s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+const norm=(s:string)=>s.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\\s+/g," ").trim();
+const compact=(s:string)=>norm(s).replace(/\\b([a-z])\\s+(?=[a-z]\\b)/g,"$1").replace(/\\s/g,"");
 function findProjects(text:string,projects:Project[],aliases:Alias[]){
- const input=" "+norm(text)+" ";
- return projects.map(p=>{
-  const names=[p.name,...aliases.filter(a=>a.project_id===p.id).map(a=>a.alias)];
-  const matched=names.find(n=>input.includes(" "+norm(n)+" "));
-  return {project:p,matched:matched||"",score:matched?100:0};
- }).filter(x=>x.matched).sort((a,b)=>b.score-a.score);
+ const tokens=norm(text).split(" ").filter(Boolean);
+ const input=" "+tokens.join(" ")+" ";
+ return projects.map(project=>{
+  const names=[project.name,...aliases.filter(a=>a.project_id===project.id).map(a=>a.alias)];
+  let best={project,matched:"",score:0};
+  for(const name of names){
+   const n=norm(name),words=n.split(" ").filter(Boolean);
+   if(!words.length)continue;
+   const exact=input.includes(" "+n+" ");
+   const key=compact(name);
+   let score=exact?100:0;
+   // Spelled initials may be separated by Whisper: "D-R Mind" vs "DR Mind".
+   for(let i=0;i<tokens.length;i++){
+    for(let size=Math.max(1,words.length-1);size<=Math.min(words.length+2,tokens.length-i);size++){
+     if(compact(tokens.slice(i,i+size).join(" "))===key)score=Math.max(score,92);
+    }
+   }
+   // "Dear Mind" -> "Deer Mind": phonetic ambiguity, never silent filing.
+   if(words.length>=2){
+    for(let i=0;i<=tokens.length-words.length;i++){
+     const lastWordsMatch=words.slice(1).every((w,j)=>tokens[i+j+1]===w);
+     const first=words[0],heard=tokens[i];
+     const commonVariant=(["dear","deer","dr"].includes(first)&&["dear","deer","dr"].includes(heard));
+     if(lastWordsMatch&&commonVariant)score=Math.max(score,72);
+    }
+   }
+   if(score>best.score)best={project,matched:name,score};
+  }
+  return best;
+ }).filter(x=>x.score>=70).sort((a,b)=>b.score-a.score);
 }
 export default function FilingReview({capture,projects,onComplete}:{capture:Capture;projects:Project[];onComplete:()=>void}){
  const [aliases,setAliases]=useState<Alias[]>([]);
@@ -29,10 +54,10 @@ export default function FilingReview({capture,projects,onComplete}:{capture:Capt
  useEffect(()=>{if(!title)setTitle(suggestedTitle)},[suggestedTitle,title]);
  const suggested=matches.length===1?matches[0].project:null;
  async function save(decision:"file"|"inbox"){
-  if(busy)return;setBusy(true);setError("");
+  if(busy)return;if(decision==="file"&&!project){setError("Please select a project, or keep this recording in Inbox.");return;}setBusy(true);setError("");
   try{
    const client=getSupabase();const {data:{user}}=await client.auth.getUser();if(!user)throw Error("Sign in again.");
-   const finalProject=decision==="file"?(project||suggested?.id||null):null;
+   const finalProject=decision==="file"?(project||null):null;
    const finalTitle=(title||suggestedTitle).trim();
    const {data:before,error:readError}=await client.from("captures").select("id,owner_id").eq("id",capture.id).single();
    if(readError||before?.owner_id!==user.id)throw Error("Recording is unavailable.");
@@ -62,7 +87,7 @@ export default function FilingReview({capture,projects,onComplete}:{capture:Capt
     <option value="">No project / Inbox</option>
     {projects.map(p=><option key={p.id} value={p.id}>{p.name}{matches.some(x=>x.project.id===p.id)?" (name match)":""}</option>)}
   </select></label>
-  {suggested&&<button type="button" className="subtle-action" onClick={()=>setProject(suggested.id)}>Use suggested project: {suggested.name}</button>}
+  {suggested&&<div><p role="status">Possible project: <strong>{suggested.name}</strong> ({matches[0].score===100?"name found":matches[0].score>=90?"spelling variation":"phonetic possibility"}). Please verify before filing.</p><button type="button" className="subtle-action" onClick={()=>setProject(suggested.id)}>Select {suggested.name}</button></div>}
   {matches.length>1&&<p className="workspace-error">Multiple project-name matches. Please choose manually.</p>}
   {project&&<div><label>Verified pronunciation / spelling alias (optional)<input value={aliasText} onChange={e=>setAliasText(e.target.value)} placeholder="e.g. Deer Mind" /></label><button type="button" className="subtle-action" disabled={busy||aliasText.trim().length<2} onClick={()=>void addAlias()}>Remember confirmed alias</button></div>}
   {notice&&<p role="status">{notice}</p>}{error&&<p role="alert" className="workspace-error">{error}</p>}
