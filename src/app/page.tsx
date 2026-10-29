@@ -1,3 +1,4 @@
+import AuthGate from "@/components/auth-gate";
 "use client";
 
 import { useState } from "react";
@@ -5,7 +6,7 @@ import { AudioLines, Brain, FolderClosed, Home, Lightbulb, ListTodo, Mic, Search
 
 const nav = [{ label: "Home", Icon: Home },{ label: "My Memory", Icon: Brain },{ label: "Projects", Icon: FolderClosed },{ label: "Ideas", Icon: Lightbulb },{ label: "Tasks", Icon: ListTodo },{ label: "Search", Icon: Search }];
 
-export default function HomePage() {
+function HomeContent() {
   const [mode, setMode] = useState<"ready" | "preview">("ready");
   return <div className="shell">
     <aside className="sidebar"><div className="brand"><span className="brand-orb" /><span><strong>AURA</strong><small>Your personal AI assistant</small></span></div>
@@ -22,3 +23,5 @@ export default function HomePage() {
     </main>
   </div>;
 }
+
+export default function HomePage() { return <AuthGate><HomeContent /></AuthGate>; }
