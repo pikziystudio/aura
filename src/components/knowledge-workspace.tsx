@@ -8,7 +8,7 @@ type Memory = {id:string;title:string|null;raw_transcript:string|null;project_id
 type Section = "projects" | "memory";
 export default function KnowledgeWorkspace({section,onBack}:{section:Section;onBack:()=>void}){
  const [owner,setOwner]=useState("");const [workspace,setWorkspace]=useState("");const [projects,setProjects]=useState<Project[]>([]);
- const [notes,setNotes]=useState<Memory[]>([]);const [playing,setPlaying]=useState<string|null>(null);const [audioUrl,setAudioUrl]=useState<string|null>(null);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);
+ const [notes,setNotes]=useState<Memory[]>([]);const [transcribing,setTranscribing]=useState<string|null>(null);const [playing,setPlaying]=useState<string|null>(null);const [audioUrl,setAudioUrl]=useState<string|null>(null);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");const [notice,setNotice]=useState("");const [query,setQuery]=useState("");
  const [creating,setCreating]=useState(false);const [title,setTitle]=useState("");const [body,setBody]=useState("");const [projectId,setProjectId]=useState("");
  const load=useCallback(async()=>{
@@ -40,6 +40,20 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
    setCreating(false);setTitle("");setBody("");setProjectId("");setNotice(section==="projects"?"Project created.":"Note saved.");await load();
   }catch(e){setError(e instanceof Error?e.message:"Unable to save.");}finally{setBusy(false);}
  }
+ async function transcribe(note:Memory){
+  if(!note.file_storage_path||transcribing)return;
+  setError("");setNotice("");setTranscribing(note.id);
+  try{
+   const {data:{session}}=await getSupabase().auth.getSession();
+   if(!session?.access_token)throw new Error("Sign in again to transcribe.");
+   const response=await fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token},body:JSON.stringify({captureId:note.id})});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error||"Transcription failed.");
+   setNotice(result.alreadyProcessed?"Transcript already available.":"Transcript saved to My Memory.");
+   await load();
+  }catch(e){setError(e instanceof Error?e.message:"Unable to transcribe.");}
+  finally{setTranscribing(null);}
+ }
  async function playRecording(note:Memory){
   if(!note.file_storage_path)return;setError("");setPlaying(note.id);setAudioUrl(null);
   const {data,error}=await getSupabase().storage.from("aura-recordings").createSignedUrl(note.file_storage_path,300);
@@ -61,6 +75,6 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
   {error&&<p role="alert" className="workspace-error">{error}</p>}{notice&&<p role="status" className="workspace-notice">{notice}</p>}
   {loading?<div className="workspace-empty">Loading your workspace…</div>:section==="projects"?
     filteredProjects.length?<div className="workspace-grid">{filteredProjects.map(p=><article className="record-card" key={p.id}><div className="record-icon"><FolderPlus size={23}/></div><h2>{p.name}</h2><p>{p.description||"A new space for your ideas and notes."}</p><div className="record-footer"><span>Created {new Date(p.created_at).toLocaleDateString()}</span><button className="subtle-action" aria-label={"Archive "+p.name} onClick={()=>void archive(p)}><Archive size={16}/> Archive</button></div></article>)}</div>:<div className="workspace-empty"><FolderPlus size={30}/><h2>No projects yet</h2><p>Create your first project to start organizing your thoughts.</p></div>:
-    filteredNotes.length?<div className="workspace-list">{filteredNotes.map(n=><article className="memory-record" key={n.id}><span className="record-icon"><FileText size={20}/></span><div><h2>{n.title||"Untitled note"}</h2><p>{n.raw_transcript|| (n.file_storage_path?"Audio saved. Transcript not available yet.":"No details added.")}</p>{n.file_storage_path&&<div><button type="button" className="subtle-action" onClick={()=>void playRecording(n)}>Play recording</button>{playing===n.id&&audioUrl&&<audio controls src={audioUrl} preload="none" />}</div>}<small>{new Date(n.captured_at).toLocaleString()} {n.project_id?"· "+(projects.find(p=>p.id===n.project_id)?.name||"Project"):""}</small></div></article>)}</div>:<div className="workspace-empty"><FileText size={30}/><h2>No notes yet</h2><p>Capture a thought to begin building your personal memory.</p></div>}
+    filteredNotes.length?<div className="workspace-list">{filteredNotes.map(n=><article className="memory-record" key={n.id}><span className="record-icon"><FileText size={20}/></span><div><h2>{n.title||"Untitled note"}</h2><p>{n.raw_transcript|| (n.file_storage_path?"Audio saved. Transcript not available yet.":"No details added.")}</p>{n.file_storage_path&&<div><button type="button" className="subtle-action" onClick={()=>void playRecording(n)}>Play recording</button>{!n.raw_transcript&&<button type="button" className="subtle-action" disabled={!!transcribing} onClick={()=>void transcribe(n)}>{transcribing===n.id?"Transcribing…":"Transcribe audio"}</button>}{playing===n.id&&audioUrl&&<audio controls src={audioUrl} preload="none" />}</div>}<small>{new Date(n.captured_at).toLocaleString()} {n.project_id?"· "+(projects.find(p=>p.id===n.project_id)?.name||"Project"):""}</small></div></article>)}</div>:<div className="workspace-empty"><FileText size={30}/><h2>No notes yet</h2><p>Capture a thought to begin building your personal memory.</p></div>}
  </div>;
 }
