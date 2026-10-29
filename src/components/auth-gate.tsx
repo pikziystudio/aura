@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabase } from "@/lib/supabase";
+import WorkspaceBootstrap from "@/components/workspace-bootstrap";
 import { ArrowRight, LockKeyhole, LogOut, Mail, ShieldCheck } from "lucide-react";
 
 type View = "login" | "recovery";
@@ -61,7 +62,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   if (loading) return <div className="auth-loading" role="status">Opening AURA…</div>;
   if (!configured) return <div className="auth-loading">AURA authentication is not configured. Check the Vercel environment variables.</div>;
-  if (session) return <><div className="session-toolbar"><span><ShieldCheck size={14}/> Signed in as {session.user.email || "AURA member"}</span><button type="button" onClick={() => void getSupabase().auth.signOut()}><LogOut size={14}/> Sign out</button></div>{children}</>;
+  if (session) return <><div className="session-toolbar"><span><ShieldCheck size={14}/> Signed in as {session.user.email || "AURA member"}</span><button type="button" onClick={() => void getSupabase().auth.signOut()}><LogOut size={14}/> Sign out</button></div><WorkspaceBootstrap ownerId={session.user.id}>{children}</WorkspaceBootstrap></>;
 
   return <main className="auth-page"><section className="auth-panel">
     <div className="auth-logo"><div className="auth-logo-orb"/>AURA</div>
