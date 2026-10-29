@@ -38,3 +38,11 @@
 .capture-dialog{width:min(100%,480px);max-height:90vh;overflow:auto;background:#fcfcff;border:1px solid #fff;border-radius:30px;box-shadow:0 30px 90px #0c174955;padding:28px;display:flex;flex-direction:column;align-items:stretch;gap:14px;text-align:center}
 .capture-dialog header{display:flex;justify-content:space-between;align-items:center}.capture-dialog header button{border:0;background:none;color:#596489;padding:8px}.capture-symbol{width:100px;height:100px;margin:18px auto 0;display:grid;place-items:center;color:white;border-radius:50%;background:radial-gradient(circle at 70% 75%,#83ddf7,#9b9cfc 53%,#edafe4);box-shadow:0 10px 40px #aaa0f969}
 .capture-dialog h2{margin:3px 0 0;font-size:27px;letter-spacing:-.04em}.capture-dialog p{font-size:13px;color:#707c9e;margin:0 0 8px}.capture-controls{display:flex;gap:9px;justify-content:center}.capture-controls button,.capture-save{border:0;border-radius:100px;background:#536df3;padding:13px 20px;display:inline-flex;align-items:center;justify-content:center;gap:9px;color:white;font-weight:600}.capture-dialog label{display:grid;text-align:left;font-size:12px;font-weight:600;gap:7px}.capture-dialog input,.capture-dialog select{border:1px solid #e1e5f3;background:#f7f9ff;border-radius:13px;padding:12px 13px;font:inherit;color:#14214a}.capture-dialog audio{width:100%}.capture-dialog small{font-size:11px;line-height:1.5;color:#9b4566}.capture-save:disabled{opacity:.55}
+
+/* Filing review needs to fill the memory body, not shrink to content width. */
+.memory-record > div:nth-child(2){flex:1;min-width:0}
+.filing-review-card{width:min(100%,720px);max-width:100%;box-sizing:border-box;margin-top:16px}
+.filing-review-card .editor-head{gap:12px;flex-wrap:wrap}
+.filing-review-card .editor-head .eyebrow{white-space:nowrap}
+.filing-review-card p{overflow-wrap:anywhere}
+@media(max-width:750px){.memory-record{padding:16px;gap:12px}.filing-review-card{padding:18px}}
