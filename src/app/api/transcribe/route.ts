@@ -43,7 +43,26 @@ export async function POST(request: NextRequest) {
   try{response=await fetch("https://api.openai.com/v1/audio/transcriptions",{
     method:"POST",headers:{Authorization:`Bearer ${apiKey}`},body:form,signal:AbortSignal.timeout(50000)
   });}catch{return failure("Transcription service could not be reached. Please retry.",502);}
-  if(!response.ok)return failure("Transcription service failed. Try again later.",502);
+  if(!response.ok){
+    let providerCode = "";
+    try {
+      const body = await response.json() as {error?:{code?:string;type?:string}};
+      providerCode = String(body.error?.code || body.error?.type || "").toLowerCase();
+    } catch { /* Never pass raw provider responses to clients. */ }
+    console.error("AURA transcription provider failure", {httpStatus:response.status,code:providerCode.slice(0,100)});
+    if(response.status===401) return failure("Transcription provider rejected the API key. Verify OPENAI_API_KEY in Vercel.",502);
+    if(response.status===403) return failure("Transcription provider denied access. Check API key permissions and project access.",502);
+    if(response.status===429){
+      if(providerCode.includes("quota")||providerCode.includes("billing"))return failure("Transcription provider has insufficient quota or billing credits. Check API billing and limits.",503);
+      return failure("Transcription rate limit reached. Try again later.",429);
+    }
+    if(response.status===400){
+      if(providerCode.includes("model"))return failure("The configured transcription model is not available to this API project.",502);
+      return failure("The transcription provider rejected this recording or model. Check the audio format and model setting.",422);
+    }
+    if(response.status===413)return failure("The provider rejected the recording size.",413);
+    return failure("Transcription provider temporarily failed (HTTP "+response.status+").",502);
+  }
   const result=await response.json() as {text?:unknown};
   if(typeof result.text!=="string" || !result.text.trim())return failure("No speech was recognized.",422);
   const transcript=result.text.trim().slice(0,200000);
