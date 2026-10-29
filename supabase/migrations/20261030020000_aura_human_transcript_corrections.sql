@@ -1,0 +1,2 @@
+alter table public.captures add column if not exists corrected_transcript text;
+comment on column public.captures.corrected_transcript is 'Human-corrected transcript; raw_transcript remains unmodified for provenance.';
