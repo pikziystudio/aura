@@ -4,8 +4,8 @@ import {getSupabase} from "@/lib/supabase";
 type Project={id:string;name:string};
 type Alias={project_id:string;alias:string};
 type Capture={id:string;title:string|null;raw_transcript:string|null;corrected_transcript:string|null;project_id:string|null;filing_status?:string};
-const norm=(s:string)=>s.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\\s+/g," ").trim();
-const compact=(s:string)=>norm(s).replace(/\\b([a-z])\\s+(?=[a-z]\\b)/g,"$1").replace(/\\s/g,"");
+const norm=(s:string)=>s.replace(/([a-z])([A-Z])/g,"$1 $2").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+const compact=(s:string)=>norm(s).replace(/\s/g,"");
 function findProjects(text:string,projects:Project[],aliases:Alias[]){
  const tokens=norm(text).split(" ").filter(Boolean);
  const input=" "+tokens.join(" ")+" ";
@@ -15,28 +15,23 @@ function findProjects(text:string,projects:Project[],aliases:Alias[]){
   for(const name of names){
    const n=norm(name),words=n.split(" ").filter(Boolean);
    if(!words.length)continue;
-   const exact=input.includes(" "+n+" ");
+   let score=input.includes(" "+n+" ")?100:0;
    const key=compact(name);
-   let score=exact?100:0;
-   // Spelled initials may be separated by Whisper: "D-R Mind" vs "DR Mind".
    for(let i=0;i<tokens.length;i++){
     for(let size=Math.max(1,words.length-1);size<=Math.min(words.length+2,tokens.length-i);size++){
      if(compact(tokens.slice(i,i+size).join(" "))===key)score=Math.max(score,92);
     }
    }
-   // "Dear Mind" -> "Deer Mind": phonetic ambiguity, never silent filing.
-   if(words.length>=2){
-    for(let i=0;i<=tokens.length-words.length;i++){
-     const lastWordsMatch=words.slice(1).every((w,j)=>tokens[i+j+1]===w);
-     const first=words[0],heard=tokens[i];
-     const commonVariant=(["dear","deer","dr"].includes(first)&&["dear","deer","dr"].includes(heard));
-     if(lastWordsMatch&&commonVariant)score=Math.max(score,72);
+   if(words.length===2&&["dear","deer","dr"].includes(words[0])&&words[1]==="mind"){
+    for(let i=0;i<tokens.length-1;i++){
+     if(tokens[i+1]==="mind"&&["dear","deer","dr"].includes(tokens[i]))score=Math.max(score,76);
+     if(tokens[i+1]==="mind"&&tokens[i]==="your"&&tokens.slice(i+2,i+4).includes("project"))score=Math.max(score,58);
     }
    }
    if(score>best.score)best={project,matched:name,score};
   }
   return best;
- }).filter(x=>x.score>=70).sort((a,b)=>b.score-a.score);
+ }).filter(x=>x.score>=55).sort((a,b)=>b.score-a.score);
 }
 export default function FilingReview({capture,projects,onComplete}:{capture:Capture;projects:Project[];onComplete:()=>void}){
  const [aliases,setAliases]=useState<Alias[]>([]);
@@ -79,7 +74,7 @@ export default function FilingReview({capture,projects,onComplete}:{capture:Capt
   }catch(e){setError(e instanceof Error?e.message:"Couldn't save alias.");}
   finally{setBusy(false);}
  }
- return <section className="editor-card" aria-label="Review memory filing">
+ return <section className="editor-card filing-review-card" aria-label="Review memory filing">
   <div className="editor-head"><h2>Review before filing</h2><span className="eyebrow">NOT AUTO-FILED</span></div>
   <p>{transcript.slice(0,380)||"No transcript yet. You can still file manually."}</p>
   <label>Suggested title <input value={title} maxLength={200} onChange={e=>setTitle(e.target.value)} /></label>
@@ -87,7 +82,7 @@ export default function FilingReview({capture,projects,onComplete}:{capture:Capt
     <option value="">No project / Inbox</option>
     {projects.map(p=><option key={p.id} value={p.id}>{p.name}{matches.some(x=>x.project.id===p.id)?" (name match)":""}</option>)}
   </select></label>
-  {suggested&&<div><p role="status">Possible project: <strong>{suggested.name}</strong> ({matches[0].score===100?"name found":matches[0].score>=90?"spelling variation":"phonetic possibility"}). Please verify before filing.</p><button type="button" className="subtle-action" onClick={()=>setProject(suggested.id)}>Select {suggested.name}</button></div>}
+  {suggested&&<div><p role="status">Possible project: <strong>{suggested.name}</strong> ({matches[0].score===100?"name found":matches[0].score>=90?"spelling variation":matches[0].score>=70?"phonetic possibility":"weak contextual possibility"}). Please verify before filing.</p><button type="button" className="subtle-action" onClick={()=>setProject(suggested.id)}>Select {suggested.name}</button></div>}
   {matches.length>1&&<p className="workspace-error">Multiple project-name matches. Please choose manually.</p>}
   {project&&<div><label>Verified pronunciation / spelling alias (optional)<input value={aliasText} onChange={e=>setAliasText(e.target.value)} placeholder="e.g. Deer Mind" /></label><button type="button" className="subtle-action" disabled={busy||aliasText.trim().length<2} onClick={()=>void addAlias()}>Remember confirmed alias</button></div>}
   {notice&&<p role="status">{notice}</p>}{error&&<p role="alert" className="workspace-error">{error}</p>}
