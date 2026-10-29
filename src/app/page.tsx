@@ -1,5 +1,6 @@
-import AuthGate from "@/components/auth-gate";
 "use client";
+
+import AuthGate from "@/components/auth-gate";
 
 import { useState } from "react";
 import { AudioLines, Brain, FolderClosed, Home, Lightbulb, ListTodo, Mic, Search, Settings2, Sparkles } from "lucide-react";
