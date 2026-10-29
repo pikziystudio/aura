@@ -4,11 +4,11 @@ import { getSupabase } from "@/lib/supabase";
 import { Archive, ArrowLeft, FileText, FolderPlus, Plus, RefreshCw, Search, X } from "lucide-react";
 
 type Project = {id:string;name:string;description:string|null;status:string;created_at:string};
-type Memory = {id:string;title:string|null;raw_transcript:string|null;project_id:string|null;captured_at:string;file_storage_path:string|null;processing_status:string};
+type Memory = {id:string;title:string|null;raw_transcript:string|null;corrected_transcript:string|null;project_id:string|null;captured_at:string;file_storage_path:string|null;processing_status:string};
 type Section = "projects" | "memory";
 export default function KnowledgeWorkspace({section,onBack}:{section:Section;onBack:()=>void}){
  const [owner,setOwner]=useState("");const [workspace,setWorkspace]=useState("");const [projects,setProjects]=useState<Project[]>([]);
- const [notes,setNotes]=useState<Memory[]>([]);const [transcribing,setTranscribing]=useState<string|null>(null);const [transcribeProgress,setTranscribeProgress]=useState("");const [playing,setPlaying]=useState<string|null>(null);const [audioUrl,setAudioUrl]=useState<string|null>(null);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);
+ const [notes,setNotes]=useState<Memory[]>([]);const [editingTranscript,setEditingTranscript]=useState<string|null>(null);const [draftTranscript,setDraftTranscript]=useState("");const [savingCorrection,setSavingCorrection]=useState(false);const [modelChoice,setModelChoice]=useState<"whisper-base"|"whisper-small">("whisper-base");const [transcribing,setTranscribing]=useState<string|null>(null);const [transcribeProgress,setTranscribeProgress]=useState("");const [playing,setPlaying]=useState<string|null>(null);const [audioUrl,setAudioUrl]=useState<string|null>(null);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");const [notice,setNotice]=useState("");const [query,setQuery]=useState("");
  const [creating,setCreating]=useState(false);const [title,setTitle]=useState("");const [body,setBody]=useState("");const [projectId,setProjectId]=useState("");
  const load=useCallback(async()=>{
@@ -20,7 +20,7 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
    if(wError||!ws)throw wError||new Error("Personal workspace not available.");
    const [p,n]=await Promise.all([
     client.from("projects").select("id,name,description,status,created_at").eq("workspace_id",ws.id).eq("owner_id",user.id).order("created_at",{ascending:false}),
-    client.from("captures").select("id,title,raw_transcript,project_id,captured_at,file_storage_path,processing_status").eq("workspace_id",ws.id).eq("owner_id",user.id).eq("kind","note").order("captured_at",{ascending:false})
+    client.from("captures").select("id,title,raw_transcript,corrected_transcript,project_id,captured_at,file_storage_path,processing_status").eq("workspace_id",ws.id).eq("owner_id",user.id).eq("kind","note").order("captured_at",{ascending:false})
    ]);
    if(p.error)throw p.error;if(n.error)throw n.error;
    setOwner(user.id);setWorkspace(ws.id);setProjects(p.data||[]);setNotes(n.data||[]);
@@ -52,7 +52,7 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
     if(downloadError || !audio)throw Error(downloadError?.message || "Unable to download your audio.");
     setTranscribeProgress("Loading a free local Whisper model for this browser. First download may be large…");
     const { BrowserWhisper }=await import("browser-whisper");
-    const whisper=new BrowserWhisper({model:"whisper-base"});
+    const whisper=new BrowserWhisper({model:modelChoice});
     engine=whisper;
     const file=new File([audio],"recording."+ (note.file_storage_path.split(".").pop()||"webm"),{type:audio.type||"audio/webm"});
     const segments=await whisper.transcribe(file,{
@@ -71,6 +71,16 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
   }catch(e){setError(e instanceof Error?e.message:"Local transcription failed.");}
   finally{engine?.dispose();setTranscribing(null);setTranscribeProgress("");}
  }
+ async function saveCorrection(note:Memory){
+  if(!draftTranscript.trim())return setError("Corrected transcript cannot be empty.");
+  setSavingCorrection(true);setError("");
+  try{
+   const {error}=await getSupabase().from("captures").update({corrected_transcript:draftTranscript.trim()}).eq("id",note.id).eq("owner_id",owner);
+   if(error)throw error;
+   setEditingTranscript(null);setNotice("Correction saved. Original machine transcript preserved.");await load();
+  }catch(e){setError(e instanceof Error?e.message:"Could not save correction.");}
+  finally{setSavingCorrection(false);}
+ }
  async function playRecording(note:Memory){
   if(!note.file_storage_path)return;setError("");setPlaying(note.id);setAudioUrl(null);
   const {data,error}=await getSupabase().storage.from("aura-recordings").createSignedUrl(note.file_storage_path,300);
@@ -83,7 +93,7 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
   if(error)setError(error.message);else void load();
  }
  const filteredProjects=projects.filter(p=>p.name.toLowerCase().includes(query.toLowerCase())&&p.status!=="archived");
- const filteredNotes=notes.filter(n=>[n.title,n.raw_transcript,projects.find(p=>p.id===n.project_id)?.name].some(s=>s?.toLowerCase().includes(query.toLowerCase())));
+ const filteredNotes=notes.filter(n=>[n.title,n.raw_transcript,n.corrected_transcript,projects.find(p=>p.id===n.project_id)?.name].some(s=>s?.toLowerCase().includes(query.toLowerCase())));
  return <div className="workspace-view">
   <div className="workspace-top"><button className="subtle-action" onClick={onBack}><ArrowLeft size={17}/> Home</button><span>Private workspace</span></div>
   <div className="workspace-heading"><div><span className="eyebrow">YOUR SPACE TO THINK</span><h1>{section==="projects"?"Your projects.":"My Memory."}</h1><p>{section==="projects"?"A quiet place for everything you're building.":"Thoughts and notes, safely kept and easy to find."}</p></div><button className="primary-action" onClick={()=>setCreating(v=>!v)}><Plus size={18}/>{section==="projects"?"New project":"New note"}</button></div>
@@ -92,6 +102,6 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
   {error&&<p role="alert" className="workspace-error">{error}</p>}{transcribing&&<p role="status" className="workspace-notice">{transcribeProgress}</p>}{notice&&<p role="status" className="workspace-notice">{notice}</p>}
   {loading?<div className="workspace-empty">Loading your workspace…</div>:section==="projects"?
     filteredProjects.length?<div className="workspace-grid">{filteredProjects.map(p=><article className="record-card" key={p.id}><div className="record-icon"><FolderPlus size={23}/></div><h2>{p.name}</h2><p>{p.description||"A new space for your ideas and notes."}</p><div className="record-footer"><span>Created {new Date(p.created_at).toLocaleDateString()}</span><button className="subtle-action" aria-label={"Archive "+p.name} onClick={()=>void archive(p)}><Archive size={16}/> Archive</button></div></article>)}</div>:<div className="workspace-empty"><FolderPlus size={30}/><h2>No projects yet</h2><p>Create your first project to start organizing your thoughts.</p></div>:
-    filteredNotes.length?<div className="workspace-list">{filteredNotes.map(n=><article className="memory-record" key={n.id}><span className="record-icon"><FileText size={20}/></span><div><h2>{n.title||"Untitled note"}</h2><p>{n.raw_transcript|| (n.file_storage_path?"Audio saved. Transcript not available yet.":"No details added.")}</p>{n.file_storage_path&&<div><button type="button" className="subtle-action" onClick={()=>void playRecording(n)}>Play recording</button>{!n.raw_transcript&&<button type="button" className="subtle-action" disabled={!!transcribing} onClick={()=>void transcribe(n)}>{transcribing===n.id?"Working locally…":"Transcribe offline (free)"}</button>}{playing===n.id&&audioUrl&&<audio controls src={audioUrl} preload="none" />}</div>}<small>{new Date(n.captured_at).toLocaleString()} {n.project_id?"· "+(projects.find(p=>p.id===n.project_id)?.name||"Project"):""}</small></div></article>)}</div>:<div className="workspace-empty"><FileText size={30}/><h2>No notes yet</h2><p>Capture a thought to begin building your personal memory.</p></div>}
+    filteredNotes.length?<div className="workspace-list">{filteredNotes.map(n=><article className="memory-record" key={n.id}><span className="record-icon"><FileText size={20}/></span><div><h2>{n.title||"Untitled note"}</h2><p>{n.corrected_transcript||n.raw_transcript|| (n.file_storage_path?"Audio saved. Transcript not available yet.":"No details added.")}</p>{n.raw_transcript&&<div><button type="button" className="subtle-action" onClick={()=>{setEditingTranscript(n.id);setDraftTranscript(n.corrected_transcript||n.raw_transcript||"");}}>Correct transcript</button>{n.corrected_transcript&&<small>Human-corrected · Original retained</small>}{editingTranscript===n.id&&<div className="editor-card"><label>Corrected transcript<textarea rows={4} value={draftTranscript} onChange={e=>setDraftTranscript(e.target.value)} /></label><div><button type="button" className="primary-action" disabled={savingCorrection} onClick={()=>void saveCorrection(n)}>{savingCorrection?"Saving…":"Save correction"}</button><button type="button" className="subtle-action" onClick={()=>setEditingTranscript(null)}>Cancel</button></div></div>}</div>}{n.file_storage_path&&<div><button type="button" className="subtle-action" onClick={()=>void playRecording(n)}>Play recording</button>{!n.raw_transcript&&<label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12}}>Model <select value={modelChoice} onChange={e=>setModelChoice(e.target.value as "whisper-base"|"whisper-small")} disabled={!!transcribing}><option value="whisper-base">Base · faster</option><option value="whisper-small">Small · more accurate, ~586 MB</option></select></label>}{!n.raw_transcript&&<button type="button" className="subtle-action" disabled={!!transcribing} onClick={()=>void transcribe(n)}>{transcribing===n.id?"Working locally…":"Transcribe offline (free)"}</button>}{playing===n.id&&audioUrl&&<audio controls src={audioUrl} preload="none" />}</div>}<small>{new Date(n.captured_at).toLocaleString()} {n.project_id?"· "+(projects.find(p=>p.id===n.project_id)?.name||"Project"):""}</small></div></article>)}</div>:<div className="workspace-empty"><FileText size={30}/><h2>No notes yet</h2><p>Capture a thought to begin building your personal memory.</p></div>}
  </div>;
 }
