@@ -1,0 +1,12 @@
+node_modules/
+.next/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.local
+*.log
+.tauri/
+src-tauri/target/
+.DS_Store
