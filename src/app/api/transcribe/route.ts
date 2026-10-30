@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { validateSupabaseConfig } from "@/lib/supabase-config";
+
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const MAX_BYTES = 24 * 1024 * 1024;
@@ -11,9 +13,10 @@ export async function POST(request: NextRequest) {
   if (!apiKey) return failure("Transcription is not configured. Add the server-only OPENAI_API_KEY in Vercel.",503);
   const authHeader = request.headers.get("authorization") || "";
   if (!authHeader.startsWith("Bearer ")) return failure("Sign in to transcribe recordings.",401);
-  const projectUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if(!projectUrl||!publishableKey)return failure("Server configuration is missing.",503);
+  let config: {url:string;key:string};
+  try { config=validateSupabaseConfig(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY); }
+  catch { return failure("Server configuration is missing or invalid.",503); }
+  const {url:projectUrl,key:publishableKey}=config;
   let captureId: string;
   try{
     const body=await request.json();

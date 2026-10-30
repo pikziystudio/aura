@@ -20,16 +20,18 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let sessionEventSeen = false;
     let unsubscribe = () => {};
     try {
       const client = getSupabase();
       client.auth.getSession().then(({ data, error }) => {
-        if (!active) return;
+        if (!active || sessionEventSeen) return;
         if (error) setError("Could not check your session. Please try again.");
-        setSession(data.session);
+        setSession(error ? null : data.session);
         setLoading(false);
-      }).catch(() => { if (active) {setError("Unable to connect to authentication."); setLoading(false);} });
+      }).catch(() => { if (active && !sessionEventSeen) {setError("Unable to connect to authentication."); setLoading(false);} });
       const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
+        sessionEventSeen = true;
         if (active) {setSession(nextSession);setLoading(false);}
       });
       unsubscribe = () => data.subscription.unsubscribe();
@@ -62,7 +64,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   if (loading) return <div className="auth-loading" role="status">Opening AURA…</div>;
   if (!configured) return <div className="auth-loading">AURA authentication is not configured. Check the Vercel environment variables.</div>;
-  if (session) return <><div className="session-toolbar"><span><ShieldCheck size={14}/> Signed in as {session.user.email || "AURA member"}</span><button type="button" onClick={() => void getSupabase().auth.signOut()}><LogOut size={14}/> Sign out</button></div><WorkspaceBootstrap ownerId={session.user.id}>{children}</WorkspaceBootstrap></>;
+  if (session) return <><div className="session-toolbar"><span><ShieldCheck size={14}/> Signed in as {session.user.email || "AURA member"}</span><button type="button" onClick={() => void getSupabase().auth.signOut()}><LogOut size={14}/> Sign out</button></div><WorkspaceBootstrap key={session.user.id} ownerId={session.user.id}>{children}</WorkspaceBootstrap></>;
 
   return <main className="auth-page"><section className="auth-panel">
     <div className="auth-logo"><div className="auth-logo-orb"/>AURA</div>
