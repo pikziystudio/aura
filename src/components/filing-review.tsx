@@ -1,10 +1,11 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";
+import {useEffect,useMemo,useState,useRef} from "react";
 import {getSupabase} from "@/lib/supabase";
 import {findProjects,hasAliasConflict,normalizeProjectText,type Project,type ProjectAlias as Alias} from "@/lib/project-matching";
 import {saveMemoryFiling,suggestMemoryTitle} from "@/lib/memory-filing";
-type Capture={id:string;title:string|null;raw_transcript:string|null;corrected_transcript:string|null;project_id:string|null;filing_status?:string};
+type Capture={id:string;title:string|null;raw_transcript:string|null;corrected_transcript:string|null;project_id:string|null;filing_status?:string;filing_version?:number};
 export default function FilingReview({capture,projects,onComplete}:{capture:Capture;projects:Project[];onComplete:()=>void}){
+ const request=useRef<{fingerprint:string;id:string}|null>(null);
  const [aliases,setAliases]=useState<Alias[]>([]);
  const [confirmUnfile,setConfirmUnfile]=useState(false);
  const [title,setTitle]=useState(capture.title==="Voice note"?"":capture.title||"");
@@ -20,7 +21,9 @@ export default function FilingReview({capture,projects,onComplete}:{capture:Capt
  async function save(decision:"file"|"inbox"){
   if(busy)return;if(decision==="file"&&!project){setError("Please select a project, or keep this recording in Inbox.");return;}setBusy(true);setError("");
   try{
-   await saveMemoryFiling(getSupabase(),capture,{
+   const fingerprint=JSON.stringify([capture.id,capture.filing_version,decision,project,title,suggestedTitle,suggested?.id,confirmUnfile]);
+   if(request.current?.fingerprint!==fingerprint)request.current={fingerprint,id:crypto.randomUUID()};
+   await saveMemoryFiling(getSupabase(),capture,{requestId:request.current.id,
     decision,projectId:project,title:(title||suggestedTitle).trim(),suggestedTitle,
     suggestedProjectId:suggested?.id||null,confirmUnfile,
    });

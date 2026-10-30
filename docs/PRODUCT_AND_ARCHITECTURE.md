@@ -65,7 +65,7 @@ The actual database/schema and access policies should be inspected before modifi
 - Automatic review after transcription exists, but no reliable cross-view onboarding/auto-navigation.
 - Default title remains `Voice note` on capture; suggested title requires review.
 - Browser model weights may re-download; check origin, caching, worker lifecycle and OPFS availability; don't promise one-time download without testing.
-- No offline crash recovery. Tab close mid-recording can lose audio. No persistent upload queue.
+- Local IndexedDB chunk drafts and explicit recovery are now implemented with synthetic tests; the final uncommitted chunk, browser eviction and device failure can still lose audio. Full crash/recovery acceptance and a background sync queue are not complete. Drafts are unencrypted in the browser profile.
 - No verified background jobs, retries, model warm-up, chunked long-audio flow or speech diarization.
 - No general AI summaries, extraction of people/tasks or grounded Q&A.
 - No robust Android/Windows packages.
@@ -77,9 +77,9 @@ The actual database/schema and access policies should be inspected before modifi
 1. Project name is stored as `DearMind` (CamelCase), while Whisper may hear `Deer Mind`, `Dear Mind`, `DR Mind`, `D-R Mind`, or `your mind`. Matching must work on canonical names, confirmed aliases and contextual suggestions without silently assigning a wrong project.
 2. Early matching code contained over-escaped normalization expressions, fixed in later commits. Add regression tests so this cannot recur.
 3. Filing review was too narrow inside the memory record, fixed with responsive styles; visually retest.
-4. Filing writes `captures` and `filing_decisions` separately; a history failure can leave inconsistent state. Use a secure owner-scoped database function or other atomic workflow.
+4. An atomic, owner-scoped filing RPC and versioned migration are proposed in PR #2, with PostgreSQL tests. Production application requires schema reconciliation, human review and explicit approval first. See `supabase/review/ATOMIC_FILING_REVIEW.md`; no production migration has been applied by this work.
 5. Alias proposals from transcript corrections are intentionally conservative and may miss multiple-edits/reordered speech. Never auto-learn unconfirmed names.
-6. Current `voice-capture.tsx` creates object URLs during render; manage and revoke URLs to avoid memory leaks.
+6. Recording object URLs now follow the Blob lifecycle and are revoked. IndexedDB recovery and upload retry behavior have synthetic regression coverage; real media/browser/device acceptance remains required.
 7. Current audio browser recording isn't durable before upload. This is a release blocker.
 8. Audit existing security advisories: public-schema `vector` extension and a public `SECURITY DEFINER` `rls_auto_enable()` function were previously flagged. Inspect permissions/usage before remediation.
 9. Current site and source are public; keep actual recordings and identity data out of PRs, screenshots and test fixtures.

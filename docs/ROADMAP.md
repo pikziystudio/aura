@@ -84,3 +84,15 @@
 ## Next Codex task (copy/paste)
 
 > Audit the current `pikziystudio/aura` main branch against `docs/PRODUCT_AND_ARCHITECTURE.md`, `docs/ROADMAP.md`, and `AGENTS.md`. Start with P0: install, typecheck, build, inspect RLS/auth/recording and the project-matching/filing flow. Add runnable tests for text normalization, CamelCase project names, phonetic variants, alias conflicts, ambiguous candidates, and explicit filing confirmation. Fix reproducible defects without introducing paid AI dependencies, and submit a focused PR listing files changed, test output, risks and follow-up tasks. Do not modify the production Supabase schema without review.
+
+## P0 reliability/security implementation update (PR #2 proposal)
+
+- [x] ESLint flat configuration, zero-warning lint, and lint/database tests in CI (local execution verified; hosted CI status separate).
+- [x] Atomic filing RPC, owner/workspace checks, version trigger and retry keys implemented and tested on disposable PostgreSQL. **Migration is proposed, not approved/applied to production.**
+- [x] IndexedDB chunk persistence, explicit recovery, stable upload IDs, byte-verified retries and conditional local cleanup with synthetic regression tests.
+- [ ] Reconcile live Aura migration history/catalog and obtain migration-owner review/approval before deployment.
+- [ ] Run actual hosted Supabase auth/RLS/Storage API acceptance with two synthetic users; local fixtures do not establish hosted configuration.
+- [ ] Real process-kill/cold-start audio playback acceptance across supported browsers/devices, browser eviction/quota tests and long-recording limits.
+- [ ] Encrypted local/offsite storage, verified restore and complete multi-tab recording coordination.
+
+Details and deployment gate: [P0 reliability/security report](P0_RELIABILITY_SECURITY.md) and [migration review](../supabase/review/ATOMIC_FILING_REVIEW.md). Existing release gates remain open.
