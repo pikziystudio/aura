@@ -1,36 +1,49 @@
 # AURA
 
-AURA is a voice-first personal intelligence workspace designed for Windows and Android. This repository is in the initial setup stage.
+**A private, voice-first personal intelligence and memory workspace.** AURA captures ideas, conversations and tasks, preserves original audio, transcribes locally, and helps you review and file memories against existing projects.
 
-## Design direction
+> **Current stage:** working Next.js/Supabase browser prototype, **not** a finished Windows/Android assistant or production-safe offline recorder.
 
-Material 3 Expressive, a calm pastel palette, minimal voice-first home screen, and a prominent voice interaction orb. Information management stays accessible without crowding the home screen.
+## Start here (including Codex)
 
-## Proposed architecture
+1. Read [Product & Architecture](docs/PRODUCT_AND_ARCHITECTURE.md) for the full vision, design principles, architecture, data model and limitations.
+2. Read [Engineering Roadmap & Release Gates](docs/ROADMAP.md) for completed scope, remaining work, acceptance tests and the **first Codex task**.
+3. Follow [AGENTS.md](AGENTS.md) for mandatory implementation, security, testing and deployment rules.
+4. Inspect the actual code and migrations. Documentation is a handoff, not evidence of passed tests.
 
-- Windows and Android clients: Tauri 2, React, TypeScript, with native extensions where necessary.
-- Cloud API: Next.js backend deployed via Vercel (project: `aura`).
-- Database and authentication: dedicated Supabase `Aura` project, accessed only via approved credentials.
-- Offline recording and sync queue: device-local storage; recoverable uploads and conflict handling.
-- Voice processing and AI: modular transcription and reasoning providers, selected through a technical proof of concept.
-- Backups: independently verifiable encrypted archives and tested restoration before release.
+## Local web development
 
-## Project rules
+Use a recent Node.js LTS installation, then:
 
-1. Never commit secrets, user recordings, customer data, API keys or service-role credentials.
-2. Separate development and production data; require review before applying migrations.
-3. Every feature needs implementation, automated/manual testing, and a completed acceptance test.
-4. Preserve original recordings and source provenance for AI-generated summaries or decisions.
-5. Do not publish personal data or recordings to this public repository.
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+npm run typecheck
+npm run build
+```
 
-## Current status
+On Windows PowerShell, copy the example file with `Copy-Item .env.example .env.local`.
 
-- [x] Product direction and design language selected.
-- [x] GitHub repository and Vercel project identified.
-- [x] Supabase Aura project detected (account email confirmation pending).
-- [ ] Toolchain and application shells initialized.
-- [ ] Database migrations reviewed and applied.
-- [ ] Windows and Android first builds verified.
-- [ ] Voice capture, sync and backup acceptance tests completed.
+Configure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for the **dedicated AURA** Supabase project. Never commit real keys, audio or private user information.
 
-Detailed working checklist: AURA Master Project Map in Google Drive.
+## Working prototype features
+- Supabase Auth, personal workspace, project and note management.
+- Browser recording stored in a private Supabase Storage bucket, secure playback.
+- Open-source browser Whisper local transcription (Base and Small) and saved raw transcript.
+- Separate human transcript corrections.
+- Suggested title and project matching with a user confirmation step, filing decisions and confirmed project aliases.
+
+**Known limitations:** model downloads can be slow/repeated; matching is imperfect and initially rule-based; title generation is basic; recording can be lost if the browser closes before upload; filing updates need transaction hardening; no native release, automated end-to-end test suite or verified restore/backup process.
+
+## Deployment and infrastructure
+- Web: https://aura-pik-ziy-books.vercel.app
+- GitHub: https://github.com/pikziystudio/aura
+- Supabase: AURA project `rwivnjxlmjctjdbxlfxf` (not PikZiy Books).
+- Existing main branch pushes may trigger Vercel deployments. Confirm the latest deployment is **READY** before reporting features live.
+- Local transcription does **not** require OpenAI API billing. An old server-side endpoint may remain until cleanup and security review.
+
+## Future targets
+Native Windows and Android clients, resilient/offline recording, reliable sync, private local-first reasoning, reviewed task and project automation, encrypted backups and verified recovery.
+
+**Status and next steps:** [docs/ROADMAP.md](docs/ROADMAP.md). 
