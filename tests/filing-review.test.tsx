@@ -54,3 +54,10 @@ it("remembers an alias only after explicit confirmation and rejects canonical co
  await waitFor(()=>expect(insert).toHaveBeenCalledOnce());
  expect(insert).toHaveBeenCalledWith({owner_id:"user",project_id:"dear",alias:"Deer Mind"});
 });
+it("reuses a request ID when retrying an identical review after an ambiguous failure",async()=>{
+ mocks.save.mockRejectedValueOnce(Error("Filing was not confirmed")).mockResolvedValueOnce(undefined);
+ render(<FilingReview capture={{...capture,filing_version:0}} projects={projects} onComplete={()=>{}}/>);
+ fireEvent.change(screen.getByRole("combobox"),{target:{value:"dear"}});fireEvent.click(screen.getByRole("button",{name:"Confirm filing"}));
+ await screen.findByRole("alert");fireEvent.click(screen.getByRole("button",{name:"Confirm filing"}));
+ await waitFor(()=>expect(mocks.save).toHaveBeenCalledTimes(2));expect(mocks.save.mock.calls[0][2].requestId).toBe(mocks.save.mock.calls[1][2].requestId);
+});

@@ -47,3 +47,20 @@ Configure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 
 Native Windows and Android clients, resilient/offline recording, reliable sync, private local-first reasoning, reviewed task and project automation, encrypted backups and verified recovery.
 
 **Status and next steps:** [docs/ROADMAP.md](docs/ROADMAP.md). 
+
+## Development checks
+
+Use Node 24 and the tracked lockfile:
+
+```sh
+ONNXRUNTIME_NODE_INSTALL=skip npm ci
+npm run lint -- --max-warnings=0
+npm test
+npm run test:database
+npm run build
+npm run typecheck -- --incremental false
+```
+
+`test:database` requires Docker and creates/removes its own network-isolated, synthetic PostgreSQL database; it accepts no remote database URL. It tests migrations and policies against minimal Supabase contract fixtures, not hosted Supabase services. The ONNX option omits optional native CUDA downloads; local browser Whisper remains available without a paid AI key.
+
+For application development, configure only the dedicated Aura project's publishable/anon client key and URL from `.env.example`, then run `npm run dev`. New atomic filing requires the reviewed migration before deploying this application version. **Do not apply production SQL without approval.** Read [the migration review and deployment gate](supabase/review/ATOMIC_FILING_REVIEW.md) and [current reliability/security evidence](docs/P0_RELIABILITY_SECURITY.md).

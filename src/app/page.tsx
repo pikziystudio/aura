@@ -10,7 +10,7 @@ import { AudioLines, Brain, FolderClosed, Home, Lightbulb, ListTodo, Mic, Search
 const nav = [{ label: "Home", Icon: Home },{ label: "My Memory", Icon: Brain },{ label: "Projects", Icon: FolderClosed },{ label: "Ideas", Icon: Lightbulb },{ label: "Tasks", Icon: ListTodo },{ label: "Search", Icon: Search }];
 
 function HomeContent() {
-  const [mode, setMode] = useState<"ready" | "preview">("ready");
+  const [mode] = useState<"ready" | "preview">("ready");
   const [section,setSection]=useState<"home"|"projects"|"memory">("home");
   const [recordOpen,setRecordOpen]=useState(false);
   return <div className="shell">{recordOpen&&<VoiceCapture onClose={()=>setRecordOpen(false)}/> }
@@ -19,7 +19,7 @@ function HomeContent() {
       <div className="sidebar-bottom"><span className="status-dot" /> Development preview<br/><button className="nav-item settings" onClick={()=>alert("Settings are planned for a later milestone.")}><Settings2 size={18}/> Settings</button></div>
     </aside>
     <main className="main">{section!=="home"?<KnowledgeWorkspace section={section} onBack={()=>setSection("home")}/>:<><div className="topbar"><span>AURA / Home</span><span>Design preview · No recording connected</span></div>
-      <section className="hero" aria-labelledby="hero-title"><div className="ambient ambient-one"/><div className="ambient ambient-two"/><div className="hero-inner"><span className="eyebrow">YOUR SPACE TO THINK</span><h1 id="hero-title">Good morning<span className="period">.</span></h1><p>What's on your mind today?</p>
+      <section className="hero" aria-labelledby="hero-title"><div className="ambient ambient-one"/><div className="ambient ambient-two"/><div className="hero-inner"><span className="eyebrow">YOUR SPACE TO THINK</span><h1 id="hero-title">Good morning<span className="period">.</span></h1><p>What&apos;s on your mind today?</p>
       <button className="voice-orb" type="button" aria-label="Preview voice interaction" onClick={()=>setRecordOpen(true)}><AudioLines size={40} strokeWidth={1.6}/></button>
       <strong>{mode==="ready"?"Tap to speak":"Voice capture preview"}</strong><span className="hint">{mode==="ready"?"AURA is ready":"Microphone recording isn't connected yet"}</span>
       <div className="quick-actions"><button onClick={()=>setRecordOpen(true)}><Mic size={17}/> Capture a thought</button><button onClick={()=>alert("AI conversation is coming later.")}><Sparkles size={17}/> Ask AURA</button><button onClick={()=>alert("Project summaries are coming later.")}>Summarize</button></div></div></section>

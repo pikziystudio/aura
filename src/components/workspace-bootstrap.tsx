@@ -51,7 +51,7 @@ export default function WorkspaceBootstrap({ ownerId, children }: Props) {
 
   if (status === "loading") return <div className="auth-loading" role="status">Preparing your personal workspace…</div>;
   if (status === "error") return <main className="auth-loading"><div style={{textAlign:"center",padding:24}}>
-    <h2>We couldn't open your workspace.</h2>
+    <h2>We couldn&apos;t open your workspace.</h2>
     <p role="alert">{errorMessage}</p>
     <button type="button" onClick={() => setAttempt(n => n + 1)}>Try again</button>
   </div></main>;

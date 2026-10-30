@@ -6,7 +6,7 @@ import FilingReview from "@/components/filing-review";
 import { Archive, ArrowLeft, FileText, FolderPlus, Plus, RefreshCw, Search, X } from "lucide-react";
 
 type Project = {id:string;name:string;description:string|null;status:string;created_at:string};
-type Memory = {id:string;title:string|null;raw_transcript:string|null;corrected_transcript:string|null;project_id:string|null;captured_at:string;file_storage_path:string|null;processing_status:string;filing_status?:string};
+type Memory = {id:string;title:string|null;raw_transcript:string|null;corrected_transcript:string|null;project_id:string|null;captured_at:string;file_storage_path:string|null;processing_status:string;filing_status?:string;filing_version?:number};
 type Section = "projects" | "memory";
 type AliasSuggestion = {projectId:string;projectName:string;alias:string;captureId:string};
 function proposeAlias(original:string,corrected:string,projectName:string):string|null{
@@ -38,7 +38,7 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
    if(wError||!ws)throw wError||new Error("Personal workspace not available.");
    const [p,n]=await Promise.all([
     client.from("projects").select("id,name,description,status,created_at").eq("workspace_id",ws.id).eq("owner_id",user.id).order("created_at",{ascending:false}),
-    client.from("captures").select("id,title,raw_transcript,corrected_transcript,project_id,captured_at,file_storage_path,processing_status,filing_status").eq("workspace_id",ws.id).eq("owner_id",user.id).eq("kind","note").order("captured_at",{ascending:false})
+    client.from("captures").select("id,title,raw_transcript,corrected_transcript,project_id,captured_at,file_storage_path,processing_status,filing_status,filing_version").eq("workspace_id",ws.id).eq("owner_id",user.id).eq("kind","note").order("captured_at",{ascending:false})
    ]);
    if(p.error)throw p.error;if(n.error)throw n.error;
    setOwner(user.id);setWorkspace(ws.id);setProjects(p.data||[]);setNotes(n.data||[]);

@@ -1,67 +1,43 @@
-import { describe, expect, it, vi } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { saveMemoryFiling, suggestMemoryTitle, type FilingCommand } from "../src/lib/memory-filing";
-const capture = { id:"capture",title:"Voice note",project_id:null,filing_status:"inbox" };
-const command: FilingCommand = {decision:"file",projectId:"project",title:"Reviewed title",suggestedTitle:"Suggestion",suggestedProjectId:null,confirmUnfile:false};
-function fixture(options: { owner?: string; authenticated?: boolean; project?: boolean; saved?: boolean; historyError?: boolean; stale?: boolean; updateError?: boolean } = {}) {
-  const results = [
-    {data:{...capture,owner_id:options.owner||"user",workspace_id:"workspace",...(options.stale?{title:"Changed"}:{})},error:null},
-    {data:options.project===false?null:{id:"project"},error:null},
-    {data:options.saved===false?null:{id:"capture"},error:options.updateError?{message:"denied"}:null},
-  ];
-  const chain = {select:vi.fn(),eq:vi.fn(),is:vi.fn(),single:vi.fn(),update:vi.fn(),insert:vi.fn()};
-  for(const method of ["select","eq","is","update"] as const)chain[method].mockReturnValue(chain);
-  chain.single.mockImplementation(async()=>results.shift());
-  chain.insert.mockResolvedValue({error:options.historyError?{message:"denied"}:null});
-  const client = {auth:{getUser:vi.fn().mockResolvedValue({data:{user:options.authenticated===false?null:{id:"user"}},error:null})},from:vi.fn().mockReturnValue(chain)};
-  return {client:client as unknown as SupabaseClient,chain,from:client.from};
+import {describe,expect,it,vi} from "vitest";
+import type {SupabaseClient} from "@supabase/supabase-js";
+import {saveMemoryFiling,suggestMemoryTitle,type FilingCommand} from "../src/lib/memory-filing";
+const capture={id:"capture",title:"Voice note",project_id:null,filing_status:"inbox",filing_version:3};
+const command:FilingCommand={decision:"file",projectId:"project",title:" Reviewed ",suggestedTitle:"Suggestion",suggestedProjectId:null,confirmUnfile:false,requestId:"stable-request"};
+function fixture(code?:string){
+ const rpc=vi.fn().mockResolvedValue({data:code?null:"decision-id",error:code?{code}:null});
+ const from=vi.fn();const auth={getUser:vi.fn().mockResolvedValue({data:{user:{id:"user"}},error:null})};
+ return {client:{rpc,from,auth} as unknown as SupabaseClient,rpc,from,auth};
 }
-describe("memory filing persistence",()=>{
-  it("files only a selected project and records the same confirmed title/UUID",async()=>{
-    const {client,chain}=fixture();
-    await saveMemoryFiling(client,capture,command);
-    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({title:"Reviewed title",project_id:"project",filing_status:"filed"}));
-    expect(chain.insert).toHaveBeenCalledWith({owner_id:"user",capture_id:"capture",project_id:"project",title:"Reviewed title",decision:"file"});
-    expect(chain.eq).toHaveBeenCalledWith("owner_id","user");
-    expect(chain.eq).toHaveBeenCalledWith("workspace_id","workspace");
-    expect(chain.is).toHaveBeenCalledWith("project_id",null);
-    expect(Object.keys(chain.update.mock.calls[0][0])).not.toContain("raw_transcript");
-    expect(Object.keys(chain.update.mock.calls[0][0])).not.toContain("corrected_transcript");
-  });
-  it("does not auto-file a suggested project",async()=>{
-    const {client,chain}=fixture();
-    await expect(saveMemoryFiling(client,capture,{...command,projectId:"",suggestedProjectId:"project"})).rejects.toThrow("select a project");
-    expect(chain.update).not.toHaveBeenCalled();
-  });
-  it("requires explicit removal of a previously assigned project",async()=>{
-    const {client,chain}=fixture();
-    await expect(saveMemoryFiling(client,{...capture,project_id:"previous"},{...command,decision:"inbox"})).rejects.toThrow("Confirm removing");
-    expect(chain.update).not.toHaveBeenCalled();
-  });
-  it("supports explicitly confirmed removal to Inbox",async()=>{
-    const {client,chain}=fixture();
-    chain.single.mockReset().mockResolvedValueOnce({data:{...capture,project_id:"previous",owner_id:"user",workspace_id:"workspace"},error:null}).mockResolvedValueOnce({data:{id:"capture"},error:null});
-    await saveMemoryFiling(client,{...capture,project_id:"previous"},{...command,decision:"inbox",confirmUnfile:true});
-    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({project_id:null,filing_status:"inbox"}));
-    expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({project_id:null,decision:"inbox"}));
-  });
-  it.each([
-    ["expired session",{authenticated:false},"Sign in"],
-    ["another owner's capture",{owner:"other"},"unavailable"],
-    ["foreign/missing project",{project:false},"project is unavailable"],
-    ["stale editor",{stale:true},"changed"],
-    ["zero-row update",{saved:false},"could not be updated"],
-    ["denied update",{updateError:true},"could not be updated"],
-    ["history failure",{historyError:true},"Filing saved, but history was not recorded"],
-  ] as const)("reports %s instead of success",async(_label,options,message)=>{
-    const {client,chain}=fixture(options);
-    await expect(saveMemoryFiling(client,capture,command)).rejects.toThrow(message);
-    if(!("historyError" in options))expect(chain.insert).not.toHaveBeenCalled();
-  });
+describe("atomic memory filing client",()=>{
+ it("makes one owner-authenticated RPC, with version and stable retry ID; never splits writes",async()=>{
+  const {client,rpc,from}=fixture();await saveMemoryFiling(client,capture,command);
+  expect(rpc).toHaveBeenCalledWith("file_memory",{p_capture_id:"capture",p_expected_version:3,p_request_id:"stable-request",p_decision:"file",p_project_id:"project",p_title:"Reviewed",p_suggested_title:"Suggestion",p_suggested_project_id:null,p_confirm_unfile:false});
+  expect(from).not.toHaveBeenCalled();
+ });
+ it("does not auto-file a suggestion without explicit project selection",async()=>{
+  const {client,rpc}=fixture();await expect(saveMemoryFiling(client,capture,{...command,projectId:"",suggestedProjectId:"project"})).rejects.toThrow("select a project");expect(rpc).not.toHaveBeenCalled();
+ });
+ it("requires explicit removal before moving an assigned record to Inbox",async()=>{
+  const {client,rpc}=fixture();await expect(saveMemoryFiling(client,{...capture,project_id:"previous"},{...command,decision:"inbox"})).rejects.toThrow("Confirm removing");expect(rpc).not.toHaveBeenCalled();
+ });
+ it("sends null project with confirmed Inbox decision",async()=>{
+  const {client,rpc}=fixture();await saveMemoryFiling(client,{...capture,project_id:"previous"},{...command,decision:"inbox",confirmUnfile:true});expect(rpc).toHaveBeenCalledWith("file_memory",expect.objectContaining({p_project_id:null,p_confirm_unfile:true}));
+ });
+ it("rejects missing migration/version before RPC",async()=>{
+  const {client,rpc}=fixture();await expect(saveMemoryFiling(client,{...capture,filing_version:undefined},command)).rejects.toThrow("migration is required");expect(rpc).not.toHaveBeenCalled();
+ });
+ it("rejects expired sessions",async()=>{
+  const {client,rpc,auth}=fixture();auth.getUser.mockResolvedValue({data:{user:null},error:null} as never);await expect(saveMemoryFiling(client,capture,command)).rejects.toThrow("Sign in");expect(rpc).not.toHaveBeenCalled();
+ });
+ it.each([["40001","changed"],["PGRST202","migration is required"],["42501","not confirmed"],["NETWORK","not confirmed"]])("reports %s without a fallback write",async(code,message)=>{
+  const {client,from}=fixture(code);await expect(saveMemoryFiling(client,capture,command)).rejects.toThrow(message);expect(from).not.toHaveBeenCalled();
+ });
+ it("preserves retry ID after an ambiguous error",async()=>{
+  const {client,rpc}=fixture("NETWORK");await expect(saveMemoryFiling(client,capture,command)).rejects.toThrow();rpc.mockResolvedValue({data:"decision-id",error:null});await saveMemoryFiling(client,capture,command);expect(rpc.mock.calls[0]).toEqual(rpc.mock.calls[1]);
+ });
 });
-
-describe("source-derived title suggestions",()=>{
- it("keeps the full first sentence when it fits",()=>expect(suggestMemoryTitle("Discuss tomorrow. More context.")).toBe("Discuss tomorrow"));
- it("truncates long sentences only at the length limit",()=>expect(suggestMemoryTitle("word ".repeat(30)).length).toBeLessThanOrEqual(82));
- it("supplies a neutral fallback without inventing a project",()=>expect(suggestMemoryTitle(" ")).toBe("Untitled recording"));
+describe("source-derived titles",()=>{
+ it("retains a short sentence",()=>expect(suggestMemoryTitle("Discuss tomorrow. Context")).toBe("Discuss tomorrow"));
+ it("truncates long text",()=>expect(suggestMemoryTitle("word ".repeat(30)).length).toBeLessThanOrEqual(82));
+ it("uses a neutral fallback",()=>expect(suggestMemoryTitle(" ")).toBe("Untitled recording"));
 });

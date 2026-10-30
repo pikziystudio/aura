@@ -58,3 +58,7 @@ Final validation in this cloud instance:
  Tests cover synthetic pronunciation/spacing/ambiguity and aliases, explicit UI confirmation, mocked owner/workspace checks and failed/partial writes, auth account/session changes, recovery errors, recording cleanup/navigation, and legacy API pre-provider security guards. None contact Supabase, an AI provider, or real user data. CI uses Node 24 and the lockfile with the same ONNX option.
 
 Next.js regenerates tracked `next-env.d.ts`; its generated edits are excluded from this change. Avoid committing credentials, recordings, exports or screenshots containing user data.
+
+## Follow-up: P0 reliability/security (PR #2 proposal)
+
+The historical findings above remain the PR #1 baseline. The follow-up adds working lint/CI checks, a proposed atomic filing migration and RPC, and recoverable local recording chunks. See [P0_RELIABILITY_SECURITY.md](P0_RELIABILITY_SECURITY.md) for current evidence and remaining risks. Live database reconciliation, production approval, real device crash acceptance and deployment are still outstanding; do not interpret the proposed migration as already applied.

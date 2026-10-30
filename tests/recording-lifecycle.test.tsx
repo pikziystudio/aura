@@ -2,7 +2,10 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-li
 import { beforeEach, expect, it, vi } from "vitest";
 import { useObjectUrl } from "../src/lib/use-object-url";
 import VoiceCapture from "../src/components/voice-capture";
-vi.mock("@/lib/supabase",()=>({getSupabase:()=>({auth:{getUser:()=>Promise.resolve({data:{user:null}})}})}));
+vi.mock("@/lib/recording-drafts",()=>({listDrafts:()=>Promise.resolve([]),saveDraft:()=>Promise.resolve(),appendDraftChunk:()=>Promise.resolve()}));
+vi.mock("@/lib/supabase",()=>({getSupabase:()=>({auth:{getUser:()=>Promise.resolve({data:{user:{id:"user"}}})},from:()=>{
+ const chain={select:()=>chain,eq:()=>chain,limit:()=>chain,single:()=>Promise.resolve({data:{id:"workspace"}}),then:(fn:(r:{data:never[]})=>unknown)=>Promise.resolve({data:[]}).then(fn)};return chain;
+}})}));
 beforeEach(()=>{vi.restoreAllMocks();Object.defineProperty(URL,"createObjectURL",{configurable:true,value:vi.fn().mockReturnValue("blob:preview")});Object.defineProperty(URL,"revokeObjectURL",{configurable:true,value:vi.fn()});});
 it("creates one preview per blob, revoking it on replacement, clear and unmount",()=>{
  const blob=new Blob(["synthetic"]);
@@ -19,6 +22,7 @@ it("warns before closing/disposing an unsaved recording and on tab navigation",a
  Object.defineProperty(navigator,"mediaDevices",{configurable:true,value:{getUserMedia:vi.fn().mockResolvedValue({getTracks:()=>[{stop:stopTrack}]})}});
  const onClose=vi.fn();const confirm=vi.spyOn(window,"confirm").mockReturnValue(false);
  const {unmount}=render(<VoiceCapture onClose={onClose}/>);
+ await waitFor(()=>expect(screen.getByRole("button",{name:"Start recording"})).toBeEnabled());
  fireEvent.click(screen.getByRole("button",{name:"Start recording"}));
  await screen.findByText("Listening…");
  const event=new Event("beforeunload",{cancelable:true});window.dispatchEvent(event);expect(event.defaultPrevented).toBe(true);
@@ -32,7 +36,7 @@ it("releases microphone permission resolved after unmount",async()=>{
  let resolve!:(value:unknown)=>void;const stop=vi.fn();
  vi.stubGlobal("MediaRecorder",class {});
  Object.defineProperty(navigator,"mediaDevices",{configurable:true,value:{getUserMedia:()=>new Promise(r=>{resolve=r;})}});
- const {unmount}=render(<VoiceCapture onClose={()=>{}}/>);fireEvent.click(screen.getByRole("button",{name:"Start recording"}));unmount();
+ const {unmount}=render(<VoiceCapture onClose={()=>{}}/>);await waitFor(()=>expect(screen.getByRole("button",{name:"Start recording"})).toBeEnabled());fireEvent.click(screen.getByRole("button",{name:"Start recording"}));unmount();
  await act(async()=>{resolve({getTracks:()=>[{stop}]});});
  await waitFor(()=>expect(stop).toHaveBeenCalledOnce());vi.unstubAllGlobals();
 });
