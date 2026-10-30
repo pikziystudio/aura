@@ -10,12 +10,20 @@ export default function PasswordReset() {
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
   useEffect(()=>{
-    const client=getSupabase();
-    client.auth.getSession().then(({data})=>{if(data.session)setReady(true);});
-    const {data}=client.auth.onAuthStateChange((event,session)=>{
-      if(event==="PASSWORD_RECOVERY" || (event==="SIGNED_IN" && session))setReady(true);
-    });
-    return ()=>data.subscription.unsubscribe();
+    let active=true;
+    let sessionEventSeen=false;
+    let unsubscribe=()=>{};
+    try {
+      const client=getSupabase();
+      client.auth.getSession().then(({data,error})=>{
+        if(!active||sessionEventSeen)return;
+        if(error)setMessage("Could not verify recovery session. Open a new recovery link.");
+        else setReady(Boolean(data.session));
+      }).catch(()=>{if(active&&!sessionEventSeen)setMessage("Could not verify recovery session. Please try again.");});
+      const {data}=client.auth.onAuthStateChange((_event,session)=>{sessionEventSeen=true;if(active)setReady(Boolean(session));});
+      unsubscribe=()=>data.subscription.unsubscribe();
+    } catch { setMessage("Authentication is not configured. Contact the workspace administrator."); }
+    return ()=>{active=false;unsubscribe();};
   },[]);
   async function save(e:FormEvent){
     e.preventDefault();setBusy(true);setMessage("");

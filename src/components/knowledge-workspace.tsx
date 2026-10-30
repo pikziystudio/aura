@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { getSupabase } from "@/lib/supabase";
+import {hasAliasConflict} from "@/lib/project-matching";
 import FilingReview from "@/components/filing-review";
 import { Archive, ArrowLeft, FileText, FolderPlus, Plus, RefreshCw, Search, X } from "lucide-react";
 
@@ -111,10 +112,10 @@ export default function KnowledgeWorkspace({section,onBack}:{section:Section;onB
   try{
    const {data:{user}}=await getSupabase().auth.getUser();
    if(!user||user.id!==owner)throw new Error("Please sign in again.");
-   const {data:existing,error:checkError}=await getSupabase().from("project_aliases").select("project_id").eq("owner_id",owner).ilike("alias",aliasSuggestion.alias);
+   const {data:existing,error:checkError}=await getSupabase().from("project_aliases").select("project_id,alias").eq("owner_id",owner);
    if(checkError)throw checkError;
-   if(existing?.some(a=>a.project_id!==aliasSuggestion.projectId))throw new Error("This alias is already associated with a different project. Please review it manually.");
-   if(!existing?.length){
+   if(hasAliasConflict(aliasSuggestion.alias,aliasSuggestion.projectId,projects,existing||[]))throw new Error("This alias is already associated with a different project. Please review it manually.");
+   if(!existing?.some(a=>a.project_id===aliasSuggestion.projectId&&a.alias.toLowerCase()===aliasSuggestion.alias.toLowerCase())){
     const {error}=await getSupabase().from("project_aliases").insert({owner_id:owner,project_id:aliasSuggestion.projectId,alias:aliasSuggestion.alias});
     if(error)throw error;
    }
